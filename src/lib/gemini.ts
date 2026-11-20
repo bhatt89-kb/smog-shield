@@ -28,7 +28,7 @@ export function parseAdvice(raw: string): Advice {
 export async function generateAdvice(input: LifestyleInput, aqi: Aqi, apiKey: string): Promise<Advice> {
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
-    model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash-lite",
+    model: process.env.GEMINI_MODEL ?? "gemini-3.1-flash-lite",
     systemInstruction: SYSTEM_INSTRUCTION,
     generationConfig: { responseMimeType: "application/json", temperature: 0.4, maxOutputTokens: 3000 },
   });
