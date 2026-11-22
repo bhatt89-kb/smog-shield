@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import withBundleAnalyzer from '@next/bundle-analyzer';
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -48,7 +47,11 @@ const csp = [
 /**
  * Bundle analyzer wrapper.
  * Run with: ANALYZE=true npm run build
+ * Using dynamic require for CommonJS compatibility
  */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const withBundleAnalyzer = require('@next/bundle-analyzer');
+
 const bundleAnalyzer = withBundleAnalyzer({
   enabled: process.env.ANALYZE === 'true',
 });
