@@ -6,12 +6,14 @@ import GlowCard from "@/components/GlowCard";
 import LifestyleForm from "@/components/LifestyleForm";
 import ActionCard from "@/components/ActionCard";
 import ImpactChart from "@/components/ImpactChart";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useReducedMotion } from "@/lib/useReducedMotion";
 import { readJson } from "@/lib/http";
 import { buildLedger } from "@/lib/stats";
+import { mark, measure } from "@/lib/performance";
 import type { Advice, Aqi, LifestyleInput } from "@/lib/schemas";
 
-// Only needed after the form is submitted, so keep them out of the first page load
+// Lazy load heavy components only when needed
 const ThoughtLine = dynamic(() => import("@/components/ThoughtLine"), { ssr: false });
 const StatsLedger = dynamic(() => import("@/components/StatsLedger"), { ssr: false });
 
@@ -41,17 +43,21 @@ export default function Home() {
   const resultRef = useRef<HTMLDivElement>(null);
 
   async function submit(input: LifestyleInput) {
+    mark("advice-request-start");
     setLoading(true);
     setError(null);
     setData(null);
     setLang(input.language);
+    
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
+      
       const json = await readJson<Partial<Result> & { error?: string }>(res);
+      
       if (!res.ok || !json || !json.advice || !json.aqi) {
         throw new Error(
           json?.error ??
@@ -60,8 +66,11 @@ export default function Home() {
               : `Request failed (${res.status}). Please try again.`),
         );
       }
+      
       setData(json as Result);
-      setTimeout(() => resultRef.current?.focus(), 0); // move focus to results for keyboard/screen-reader users
+      measure("advice-request", "advice-request-start");
+      
+      setTimeout(() => resultRef.current?.focus(), 0);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -70,7 +79,7 @@ export default function Home() {
   }
 
   return (
-    <>
+    <ErrorBoundary>
       {/* Real heading for assistive tech; the rotating copy is decorative */}
       <h1 className="sr-only">Smog Shield AI: breathe safer this winter</h1>
       <div
@@ -107,7 +116,7 @@ export default function Home() {
       <LifestyleForm onSubmit={submit} loading={loading} />
 
       {/* Screen-reader status; the visual progress line is below */}
-      <p role="status" className="sr-only">
+      <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
         {loading ? "Analysing air quality and building your plan" : data ? "Your action plan is ready" : ""}
       </p>
 
@@ -199,6 +208,6 @@ export default function Home() {
           </section>
         </div>
       )}
-    </>
+    </ErrorBoundary>
   );
 }

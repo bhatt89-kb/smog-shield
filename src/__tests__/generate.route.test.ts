@@ -25,7 +25,10 @@ const validBody = {
 function makeRequest(body: unknown, raw = false) {
   return new NextRequest("http://localhost/api/generate", {
     method: "POST",
-    headers: { "x-forwarded-for": "1.2.3.4" },
+    headers: { 
+      "x-forwarded-for": "1.2.3.4",
+      "content-type": "application/json",
+    },
     body: raw ? (body as string) : JSON.stringify(body),
   });
 }

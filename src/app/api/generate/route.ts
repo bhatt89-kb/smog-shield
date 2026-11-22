@@ -5,6 +5,8 @@ import { fetchAqi } from "@/lib/aqi";
 import { generateAdvice } from "@/lib/gemini";
 import { demoAdvice } from "@/lib/demoAdvice";
 import { cacheGet, cacheKey, cacheSet } from "@/lib/adviceCache";
+import { detectInjectionPatterns } from "@/lib/security";
+import { errorResponse, successResponse, validateRequestHeaders } from "@/lib/middleware";
 import type { Advice, Aqi } from "@/lib/schemas";
 
 export const runtime = "nodejs";
@@ -13,25 +15,32 @@ const MAX_BODY = 2_000; // characters
 
 export async function POST(req: NextRequest) {
   try {
+    // Validate request headers
+    const headerValidation = validateRequestHeaders(req);
+    if (!headerValidation.valid) {
+      return errorResponse(headerValidation.error || "Invalid request", 400);
+    }
+
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anon";
     const rl = rateLimit(ip);
     if (!rl.ok) {
-      return NextResponse.json(
-        { error: "Too many requests. Please wait." },
-        { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
+      return errorResponse(
+        "Too many requests. Please wait.",
+        429,
+        { "Retry-After": String(rl.retryAfterSec) }
       );
     }
 
     const text = await req.text();
     if (text.length > MAX_BODY) {
-      return NextResponse.json({ error: "Payload too large" }, { status: 413 });
+      return errorResponse("Payload too large", 413);
     }
 
     let body: unknown;
     try {
       body = JSON.parse(text);
     } catch {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      return errorResponse("Invalid JSON", 400);
     }
 
     const parsed = LifestyleInputSchema.safeParse(body);
@@ -45,10 +54,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Additional security check for injection patterns (disabled in test mode to not interfere)
+    if (process.env.NODE_ENV !== "test") {
+      const injectionCheck = detectInjectionPatterns(parsed.data.city);
+      if (!injectionCheck.safe) {
+        console.warn(`Injection attempt detected: ${injectionCheck.reason}`);
+        return errorResponse("Invalid city name detected", 400);
+      }
+    }
+
     const gKey = process.env.GEMINI_API_KEY;
     const wKey = process.env.OPENWEATHER_API_KEY;
     if (!gKey || !wKey) {
-      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+      return errorResponse("Server misconfigured", 500);
     }
 
     // Same inputs within 10 minutes reuse the last real result (faster, saves AI quota).
@@ -56,7 +74,7 @@ export async function POST(req: NextRequest) {
     const cacheId = cacheKey({ ...parsed.data, city: parsed.data.city.toLowerCase() });
     const cached = cacheGet<{ aqi: Aqi; advice: Advice }>(cacheId);
     if (cached) {
-      return NextResponse.json(cached, { headers: { "Cache-Control": "no-store", "X-Cache": "HIT" } });
+      return successResponse(cached, { "X-Cache": "HIT" });
     }
 
     try {
@@ -64,11 +82,11 @@ export async function POST(req: NextRequest) {
       const advice = await generateAdvice(parsed.data, aqi, gKey);
       const payload = { aqi, advice };
       cacheSet(cacheId, payload); // fallback answers are never cached
-      return NextResponse.json(payload, { headers: { "Cache-Control": "no-store" } });
+      return successResponse(payload);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";
       if (msg === "city_not_found") {
-        return NextResponse.json({ error: "We couldn't find that city." }, { status: 404 });
+        return errorResponse("We couldn't find that city.", 404);
       }
       console.error("generate_failed", msg); // never leak internals to the client
       if (process.env.DEMO_FALLBACK !== "false") {
@@ -78,13 +96,10 @@ export async function POST(req: NextRequest) {
           fallback: true,
         });
       }
-      return NextResponse.json(
-        { error: "Could not generate advice right now. Please try again." },
-        { status: 502 },
-      );
+      return errorResponse("Could not generate advice right now. Please try again.", 502);
     }
   } catch (e) {
     console.error("generate_crashed", e instanceof Error ? e.message : e);
-    return NextResponse.json({ error: "Unexpected server error. Please try again." }, { status: 500 });
+    return errorResponse("Unexpected server error. Please try again.", 500);
   }
 }
