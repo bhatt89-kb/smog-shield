@@ -9,6 +9,7 @@ import { fetchAqi } from "@/lib/aqi";
 import { generateAdvice } from "@/lib/gemini";
 import { demoAdvice } from "@/lib/demoAdvice";
 import { _resetForTests } from "@/lib/rateLimit";
+import { _resetCacheForTests } from "@/lib/adviceCache";
 
 const validBody = {
   city: "Delhi, IN",
@@ -31,6 +32,7 @@ function makeRequest(body: unknown, raw = false) {
 
 beforeEach(() => {
   _resetForTests();
+  _resetCacheForTests();
   process.env.GEMINI_API_KEY = "test-gemini-key";
   process.env.OPENWEATHER_API_KEY = "test-weather-key";
   delete process.env.DEMO_FALLBACK;
@@ -99,5 +101,23 @@ describe("POST /api/generate", () => {
     const res = await POST(makeRequest(validBody));
     expect(res.status).toBe(429);
     expect(res.headers.get("Retry-After")).not.toBeNull();
+  });
+});
+describe("POST /api/generate caching", () => {
+  it("serves repeated identical requests from the cache without calling the AI again", async () => {
+    vi.mocked(generateAdvice).mockClear(); // earlier tests in this file also call it
+    const first = await POST(makeRequest(validBody));
+    const second = await POST(makeRequest({ ...validBody, city: "DELHI, in" }));
+    expect(first.status).toBe(200);
+    expect(second.headers.get("X-Cache")).toBe("HIT");
+    expect(vi.mocked(generateAdvice)).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not cache fallback answers", async () => {
+    vi.mocked(generateAdvice).mockRejectedValueOnce(new Error("model_down"));
+    const fallback = await POST(makeRequest(validBody));
+    expect((await fallback.json()).fallback).toBe(true);
+    const retry = await POST(makeRequest(validBody));
+    expect((await retry.json()).fallback).toBeUndefined();
   });
 });

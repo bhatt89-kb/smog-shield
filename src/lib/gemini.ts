@@ -27,11 +27,15 @@ export function parseAdvice(raw: string): Advice {
 
 export async function generateAdvice(input: LifestyleInput, aqi: Aqi, apiKey: string): Promise<Advice> {
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: process.env.GEMINI_MODEL ?? "gemini-3.1-flash-lite",
-    systemInstruction: SYSTEM_INSTRUCTION,
-    generationConfig: { responseMimeType: "application/json", temperature: 0.4, maxOutputTokens: 3000 },
-  });
+  const model = genAI.getGenerativeModel(
+    {
+      model: process.env.GEMINI_MODEL ?? "gemini-3.1-flash-lite",
+      systemInstruction: SYSTEM_INSTRUCTION,
+      // Hindi (Devanagari) needs many more tokens than English; 3000 could cut the JSON off
+      generationConfig: { responseMimeType: "application/json", temperature: 0.4, maxOutputTokens: 6000 },
+    },
+    { timeout: 20_000 }, // fail fast so the fallback can answer within the function limit
+  );
   const result = await model.generateContent(buildPrompt(input, aqi));
   return parseAdvice(result.response.text());
 }

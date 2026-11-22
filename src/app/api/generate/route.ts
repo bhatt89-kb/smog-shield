@@ -4,6 +4,8 @@ import { rateLimit } from "@/lib/rateLimit";
 import { fetchAqi } from "@/lib/aqi";
 import { generateAdvice } from "@/lib/gemini";
 import { demoAdvice } from "@/lib/demoAdvice";
+import { cacheGet, cacheKey, cacheSet } from "@/lib/adviceCache";
+import type { Advice, Aqi } from "@/lib/schemas";
 
 export const runtime = "nodejs";
 export const maxDuration = 30; // seconds; avoids silent timeouts on slow model calls
@@ -49,10 +51,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
     }
 
+    // Same inputs within 10 minutes reuse the last real result (faster, saves AI quota).
+    // The rate limiter above still runs first, so this cannot be used to bypass it.
+    const cacheId = cacheKey({ ...parsed.data, city: parsed.data.city.toLowerCase() });
+    const cached = cacheGet<{ aqi: Aqi; advice: Advice }>(cacheId);
+    if (cached) {
+      return NextResponse.json(cached, { headers: { "Cache-Control": "no-store", "X-Cache": "HIT" } });
+    }
+
     try {
       const aqi = await fetchAqi(parsed.data.city, wKey);
       const advice = await generateAdvice(parsed.data, aqi, gKey);
-      return NextResponse.json({ aqi, advice }, { headers: { "Cache-Control": "no-store" } });
+      const payload = { aqi, advice };
+      cacheSet(cacheId, payload); // fallback answers are never cached
+      return NextResponse.json(payload, { headers: { "Cache-Control": "no-store" } });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";
       if (msg === "city_not_found") {
