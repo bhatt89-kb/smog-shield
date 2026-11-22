@@ -13,6 +13,7 @@ const devanagari = Noto_Sans_Devanagari({
   subsets: ["devanagari"],
   variable: "--font-devanagari",
   display: "swap",
+  preload: false, // only fetched when Hindi text is actually shown
 });
 
 export const metadata: Metadata = {

@@ -1,16 +1,19 @@
 "use client";
 import { useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import RotatingText from "@/components/RotatingText";
-import ThoughtLine from "@/components/ThoughtLine";
 import GlowCard from "@/components/GlowCard";
 import LifestyleForm from "@/components/LifestyleForm";
-import StatsLedger from "@/components/StatsLedger";
 import ActionCard from "@/components/ActionCard";
 import ImpactChart from "@/components/ImpactChart";
 import { useReducedMotion } from "@/lib/useReducedMotion";
 import { readJson } from "@/lib/http";
 import { buildLedger } from "@/lib/stats";
 import type { Advice, Aqi, LifestyleInput } from "@/lib/schemas";
+
+// Only needed after the form is submitted, so keep them out of the first page load
+const ThoughtLine = dynamic(() => import("@/components/ThoughtLine"), { ssr: false });
+const StatsLedger = dynamic(() => import("@/components/StatsLedger"), { ssr: false });
 
 const AQI_LABEL = ["", "Good", "Fair", "Moderate", "Poor", "Very poor"];
 const AQI_BORDER = [
@@ -34,12 +37,14 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<Result | null>(null);
+  const [lang, setLang] = useState<LifestyleInput["language"]>("en");
   const resultRef = useRef<HTMLDivElement>(null);
 
   async function submit(input: LifestyleInput) {
     setLoading(true);
     setError(null);
     setData(null);
+    setLang(input.language);
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -139,7 +144,12 @@ export default function Home() {
       )}
 
       {data && (
-        <div ref={resultRef} tabIndex={-1} className="mt-8 space-y-6 outline-none">
+        <div
+          ref={resultRef}
+          tabIndex={-1}
+          lang={data.fallback ? "en" : lang}
+          className="mt-8 space-y-6 outline-none"
+        >
           <GlowCard>
             <section
               aria-labelledby="aqi-h"
