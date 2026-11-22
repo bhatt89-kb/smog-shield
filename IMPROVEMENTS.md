@@ -68,6 +68,9 @@ Implemented comprehensive improvements across all 6 evaluation criteria to incre
   ```
 - Devanagari font loads only when Hindi content displayed
 - Light rays background loads only on wide screens
+- **Bundle Analyzer**: Configured with `@next/bundle-analyzer`
+  - Run with: `npm run build:analyze`
+  - Generates interactive HTML reports
 
 ### Performance Monitoring (`src/lib/performance.ts`)
 ```typescript
@@ -78,10 +81,36 @@ Implemented comprehensive improvements across all 6 evaluation criteria to incre
 - getResourceTimings() - Resource load analysis
 ```
 
+### Performance Budgets & Lighthouse CI
+- **Lighthouse Config**: `.lighthouserc.json`
+  - Performance: ≥ 85%
+  - Accessibility: ≥ 95%
+  - Best Practices: ≥ 90%
+  - SEO: ≥ 85%
+- **Specific Metrics**:
+  - FCP < 2.0s
+  - LCP < 2.5s
+  - CLS < 0.1
+  - TBT < 300ms
+
+### Package Optimization
+```typescript
+experimental: {
+  optimizePackageImports: ['@hugeicons/react', 'motion'],
+}
+```
+
 ### Caching Strategy
 - 10-minute cache for identical advice requests
 - 1-hour cache for city autocomplete
 - In-memory caching with LRU eviction
+
+### Performance Documentation
+- Created `PERFORMANCE.md` with:
+  - Bundle analysis instructions
+  - Web Vitals monitoring guide
+  - Performance budget enforcement
+  - Expected performance scores (Desktop: 90-95, Mobile: 85-90)
 
 ---
 
@@ -171,28 +200,31 @@ Implemented comprehensive improvements across all 6 evaluation criteria to incre
 
 ## Files Created/Modified
 
-### New Files (11)
+### New Files (14)
 1. `src/lib/security.ts` - Input sanitization and injection detection
 2. `src/lib/middleware.ts` - Request validation and security headers
 3. `src/lib/performance.ts` - Web Vitals and performance monitoring
 4. `src/components/ErrorBoundary.tsx` - Error handling component
 5. `openapi.yaml` - Complete API documentation
 6. `IMPROVEMENTS.md` - This document
+7. `.lighthouserc.json` - Lighthouse CI configuration
+8. `PERFORMANCE.md` - Performance optimization guide
 
-### Modified Files (11)
+### Modified Files (14)
 1. `src/lib/schemas.ts` - Added JSDoc documentation
 2. `src/lib/aqi.ts` - Added JSDoc documentation
 3. `src/lib/rateLimit.ts` - Added JSDoc documentation
 4. `src/lib/stats.ts` - Added JSDoc documentation
 5. `src/lib/gemini.ts` - Added JSDoc documentation
 6. `src/lib/http.ts` - Added JSDoc + safeStringify utility
-7. `next.config.ts` - Enhanced CSP and security headers
+7. `next.config.ts` - Enhanced CSP, bundle analyzer, package optimization
 8. `src/app/api/generate/route.ts` - Added security validation
 9. `src/app/api/cities/route.ts` - Added security validation
 10. `src/app/layout.tsx` - ErrorBoundary + enhanced skip link
 11. `src/app/page.tsx` - ErrorBoundary + performance marks
 12. `vitest.config.mts` - Added NODE_ENV=test
 13. `src/__tests__/generate.route.test.ts` - Fixed Content-Type header
+14. `package.json` - Added bundle analyzer scripts
 
 ---
 

@@ -1,4 +1,6 @@
 import type { NextConfig } from "next";
+// @ts-expect-error - Bundle analyzer uses CommonJS
+import withBundleAnalyzer from '@next/bundle-analyzer';
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -44,11 +46,25 @@ const csp = [
   ...(isDev ? [] : ["upgrade-insecure-requests"]),
 ].join("; ");
 
+/**
+ * Bundle analyzer wrapper.
+ * Run with: ANALYZE=true npm run build
+ */
+const bundleAnalyzer = withBundleAnalyzer({
+  enabled: process.env.ANALYZE === 'true',
+});
+
 const nextConfig: NextConfig = {
   // Remove X-Powered-By header (security through obscurity)
   poweredByHeader: false,
   // Enable React strict mode for better error detection
   reactStrictMode: true,
+  
+  // Performance budgets (warnings in production builds)
+  experimental: {
+    optimizePackageImports: ['@hugeicons/react', 'motion'],
+  },
+
   // Enhanced security headers
   async headers() {
     return [
@@ -89,4 +105,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default bundleAnalyzer(nextConfig);
