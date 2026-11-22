@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-// @ts-expect-error - Bundle analyzer uses CommonJS
 import withBundleAnalyzer from '@next/bundle-analyzer';
 
 const isDev = process.env.NODE_ENV === "development";
