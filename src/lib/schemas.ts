@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+// Disable Zod's eval-based JIT so a strict CSP (no 'unsafe-eval') isn't triggered.
+z.config({ jitless: true });
+
 /**
  * Validation schemas for Smog Shield AI application.
  * 
