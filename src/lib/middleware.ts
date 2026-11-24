@@ -8,8 +8,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { isValidHeaderValue } from "./security";
 
 /**
+ * API versioning constant, sent as the X-API-Version header on every API response.
+ */
+export const API_VERSION = "1.0.0";
+
+/**
  * Security headers configuration.
  * Implements defense-in-depth with multiple security layers.
+ * Note: these apply to API responses. Set the same headers (plus a CSP) for
+ * pages in next.config.ts `headers()` so pages and APIs match.
  */
 export const SECURITY_HEADERS = {
   // Prevent MIME type sniffing
@@ -20,10 +27,13 @@ export const SECURITY_HEADERS = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
   // Restrict browser features
   "Permissions-Policy": "camera=(), microphone=(), geolocation=(), interest-cohort=()",
-  // Force HTTPS (production only)
-  "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
-  // XSS protection (legacy browsers)
-  "X-XSS-Protection": "1; mode=block",
+  // Force HTTPS. No "preload": that is a long-term commitment and needs a separate submission.
+  "Strict-Transport-Security": "max-age=63072000; includeSubDomains",
+  // The legacy XSS auditor is deprecated and can introduce vulnerabilities; "0" disables it.
+  // Rely on Content-Security-Policy instead.
+  "X-XSS-Protection": "0",
+  // API version tracking
+  "X-API-Version": API_VERSION,
 } as const;
 
 /**
@@ -39,13 +49,6 @@ export function validateRequestHeaders(req: NextRequest): { valid: boolean; erro
     if (contentType && !contentType.includes("application/json")) {
       return { valid: false, error: "Invalid Content-Type" };
     }
-  }
-
-  // Validate User-Agent presence (basic bot detection)
-  // Only warn in development/test, don't block
-  const userAgent = req.headers.get("user-agent");
-  if ((!userAgent || userAgent.length < 10) && process.env.NODE_ENV !== "test") {
-    console.warn("Suspicious request without proper User-Agent");
   }
 
   // Check for header injection attempts
@@ -74,12 +77,6 @@ export function withSecurityHeaders(
   });
   return response;
 }
-
-/**
- * API versioning header constant.
- * Include in all API responses for version tracking.
- */
-export const API_VERSION = "1.0.0";
 
 /**
  * Creates a standardized error response with security headers.

@@ -22,13 +22,12 @@ export async function POST(req: NextRequest) {
     }
 
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anon";
-    const rl = rateLimit(ip);
+    // Prefixed so this endpoint has its own bucket (city autocomplete does not use it up)
+    const rl = rateLimit(`generate:${ip}`);
     if (!rl.ok) {
-      return errorResponse(
-        "Too many requests. Please wait.",
-        429,
-        { "Retry-After": String(rl.retryAfterSec) }
-      );
+      return errorResponse("Too many requests. Please wait.", 429, {
+        "Retry-After": String(rl.retryAfterSec),
+      });
     }
 
     const text = await req.text();
@@ -48,7 +47,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: "Invalid input",
-          issues: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+          issues: parsed.error.issues.map((i) => ({
+            path: i.path.join("."),
+            message: i.message,
+          })),
         },
         { status: 400 },
       );
@@ -78,21 +80,38 @@ export async function POST(req: NextRequest) {
       return successResponse(cached, { "X-Cache": "HIT" });
     }
 
+    // Declared outside the try so the fallback can reuse real air data
+    // when only the AI step fails.
+    let aqi: Aqi | null = null;
+
     try {
-      const aqi = await fetchAqi(parsed.data.city, wKey);
+      aqi = await fetchAqi(parsed.data.city, wKey);
       const advice = await generateAdvice(parsed.data, aqi, gKey);
       const payload = { aqi, advice };
       cacheSet(cacheId, payload); // fallback answers are never cached
       return successResponse(payload);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "";
-      if (msg === "city_not_found") {
+      // AqiError carries `.code`; plain Errors (and test mocks) carry the same value in `.message`
+      const code =
+        typeof e === "object" && e !== null && "code" in e
+          ? String((e as { code: unknown }).code)
+          : e instanceof Error
+            ? e.message
+            : "";
+      if (code === "city_not_found") {
         return errorResponse("We couldn't find that city.", 404);
       }
-      console.error("generate_failed", msg); // never leak internals to the client
+
+      // Log which step failed; never leak internals to the client
+      const step = aqi ? "advice" : "aqi";
+      console.error("generate_failed", step, e instanceof Error ? e.message : "unknown");
+
       if (process.env.DEMO_FALLBACK !== "false") {
-        return NextResponse.json({
-          aqi: { city: parsed.data.city, aqiIndex: 4, pm25: 0, pm10: 0 },
+        return successResponse({
+          // Real air data when we have it; otherwise a placeholder
+          // (aqiUnavailable tells the UI to hide the numbers)
+          aqi: aqi ?? { city: parsed.data.city, aqiIndex: 4, pm25: 0, pm10: 0 },
+          aqiUnavailable: aqi === null,
           advice: getDemoAdvice(parsed.data.language), // Hindi fallback when language is "hi"
           fallback: true,
         });
