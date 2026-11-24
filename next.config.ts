@@ -48,7 +48,6 @@ const nextConfig: NextConfig = {
               "camera=()",
               "microphone=()",
               "geolocation=()",
-              "interest-cohort=()",
               "payment=()",
               "usb=()",
               "magnetometer=()",
