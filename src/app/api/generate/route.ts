@@ -3,7 +3,7 @@ import { LifestyleInputSchema } from "@/lib/schemas";
 import { rateLimit } from "@/lib/rateLimit";
 import { fetchAqi } from "@/lib/aqi";
 import { generateAdvice } from "@/lib/gemini";
-import { demoAdvice } from "@/lib/demoAdvice";
+import { getDemoAdvice } from "@/lib/demoAdvice";
 import { cacheGet, cacheKey, cacheSet } from "@/lib/adviceCache";
 import { detectInjectionPatterns } from "@/lib/security";
 import { errorResponse, successResponse, validateRequestHeaders } from "@/lib/middleware";
@@ -71,6 +71,7 @@ export async function POST(req: NextRequest) {
 
     // Same inputs within 10 minutes reuse the last real result (faster, saves AI quota).
     // The rate limiter above still runs first, so this cannot be used to bypass it.
+    // The cache key includes `language`, so English and Hindi results never mix.
     const cacheId = cacheKey({ ...parsed.data, city: parsed.data.city.toLowerCase() });
     const cached = cacheGet<{ aqi: Aqi; advice: Advice }>(cacheId);
     if (cached) {
@@ -92,7 +93,7 @@ export async function POST(req: NextRequest) {
       if (process.env.DEMO_FALLBACK !== "false") {
         return NextResponse.json({
           aqi: { city: parsed.data.city, aqiIndex: 4, pm25: 0, pm10: 0 },
-          advice: demoAdvice,
+          advice: getDemoAdvice(parsed.data.language), // Hindi fallback when language is "hi"
           fallback: true,
         });
       }

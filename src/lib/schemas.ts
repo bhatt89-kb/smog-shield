@@ -62,6 +62,7 @@ export type LifestyleInput = z.infer<typeof LifestyleInputSchema>;
 /**
  * Schema for a single actionable recommendation.
  * Each action includes steps, impact quantification, and effort level.
+ * Length limits are generous enough for Hindi (Devanagari) text, which is longer than English.
  * 
  * @property {string} id - Unique identifier for the action
  * @property {string} category - Type of action (routine/indoor/sustainable)
@@ -74,13 +75,13 @@ export type LifestyleInput = z.infer<typeof LifestyleInputSchema>;
 export const ActionSchema = z.object({
   id: z.string().max(40),
   category: z.enum(["routine", "indoor", "sustainable"]),
-  title: z.string().max(120),
-  steps: z.array(z.string().max(300)).min(1).max(5),
-  whyItWorks: z.string().max(400),
+  title: z.string().max(160),
+  steps: z.array(z.string().max(400)).min(1).max(5),
+  whyItWorks: z.string().max(600),
   impact: z.object({
-    metric: z.string().max(80),
+    metric: z.string().max(120),
     estimatedReductionPercent: z.number().min(0).max(100),
-    explanation: z.string().max(300),
+    explanation: z.string().max(400),
   }),
   effort: z.enum(["low", "medium", "high"]),
 });
@@ -94,8 +95,8 @@ export const ActionSchema = z.object({
  * @property {Action[]} actions - List of 3-9 recommended actions
  */
 export const AdviceSchema = z.object({
-  healthAlert: z.string().max(400),
-  summary: z.string().max(500),
+  healthAlert: z.string().max(600),
+  summary: z.string().max(700),
   actions: z.array(ActionSchema).min(3).max(9),
 });
 
